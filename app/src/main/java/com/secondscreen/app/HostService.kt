@@ -262,9 +262,11 @@ class HostService : Service() {
             }
             val outIdx = audioCodec?.dequeueOutputBuffer(info, 0) ?: continue
             if (outIdx >= 0) {
-                val data = ByteArray(info.size)
-                audioCodec!!.getOutputBuffer(outIdx)!!.get(data)
-                streamServer?.sendAudio(data, info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0)
+                if (info.size > 0) {
+                    val data = ByteArray(info.size)
+                    audioCodec!!.getOutputBuffer(outIdx)!!.get(data)
+                    streamServer?.sendAudio(data, info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0)
+                }
                 audioCodec!!.releaseOutputBuffer(outIdx, false)
             }
         }

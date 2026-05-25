@@ -42,7 +42,8 @@ class StreamClient(
                     while (isActive) {
                         val type = inp.readByte()
                         val size = inp.readInt()
-                        if (size <= 0 || size > 5_000_000) break
+                        if (size < 0 || size > 5_000_000) break
+                        if (size == 0) continue
                         val data = ByteArray(size); inp.readFully(data)
                         when (type) {
                             StreamServer.TYPE_AUDIO_CONFIG -> onAudioFrame(data, true)
