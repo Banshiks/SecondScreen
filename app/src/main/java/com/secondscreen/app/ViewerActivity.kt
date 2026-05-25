@@ -3,10 +3,12 @@ package com.secondscreen.app
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.os.Bundle
+import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
@@ -44,6 +46,37 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         surfaceView.holder.addCallback(this)
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) fitSurfaceToScreen()
+    }
+
+    private fun fitSurfaceToScreen() {
+        val root = window.decorView
+        val screenW = root.width
+        val screenH = root.height
+        if (screenW == 0 || screenH == 0) return
+
+        val streamRatio = HostService.STREAM_WIDTH.toFloat() / HostService.STREAM_HEIGHT
+        val screenRatio = screenW.toFloat() / screenH
+
+        val surfW: Int
+        val surfH: Int
+        if (streamRatio > screenRatio) {
+            surfW = screenW
+            surfH = (screenW / streamRatio).toInt()
+        } else {
+            surfH = screenH
+            surfW = (screenH * streamRatio).toInt()
+        }
+
+        val lp = surfaceView.layoutParams as FrameLayout.LayoutParams
+        lp.width = surfW
+        lp.height = surfH
+        lp.gravity = Gravity.CENTER
+        surfaceView.layoutParams = lp
     }
 
     private fun startStreaming(holder: SurfaceHolder) {

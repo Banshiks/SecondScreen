@@ -28,8 +28,8 @@ class HostService : Service() {
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         const val STREAM_PORT = 8765
-        const val STREAM_WIDTH = 1280
-        const val STREAM_HEIGHT = 720
+        const val STREAM_WIDTH = 1920
+        const val STREAM_HEIGHT = 1080
         private const val CHANNEL_ID = "ss_host"
         private const val NOTIF_ID = 1
     }
@@ -84,7 +84,7 @@ class HostService : Service() {
 
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, STREAM_WIDTH, STREAM_HEIGHT).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-            setInteger(MediaFormat.KEY_BIT_RATE, 3_000_000)
+            setInteger(MediaFormat.KEY_BIT_RATE, 8_000_000)
             setInteger(MediaFormat.KEY_FRAME_RATE, 30)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
         }
