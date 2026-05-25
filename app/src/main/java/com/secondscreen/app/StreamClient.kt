@@ -11,7 +11,8 @@ class StreamClient(
     private val port: Int,
     private val viewerWidth: Int,
     private val viewerHeight: Int,
-    private val onFrame: (ByteArray, isConfig: Boolean) -> Unit,
+    private val onAudioFrame: (ByteArray, isConfig: Boolean) -> Unit = { _, _ -> },
+    private val onClipboard: (String) -> Unit = {},
     private val onStatus: (String) -> Unit,
     private val onConnected: () -> Unit = {},
     private val onConnectionLost: () -> Unit = {},
@@ -25,64 +26,52 @@ class StreamClient(
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var socket: Socket? = null
-    private val output = AtomicReference<DataOutputStream?>(null)
+    private val out = AtomicReference<DataOutputStream?>(null)
 
     fun connect() {
         scope.launch {
             while (isActive) {
                 try {
                     onStatus("Подключение к $hostIp...")
-                    val sock = Socket(hostIp, port)
-                    socket = sock
-
-                    val out = DataOutputStream(sock.getOutputStream())
-                    output.set(out)
-                    out.writeInt(viewerWidth)
-                    out.writeInt(viewerHeight)
-                    out.flush()
-
-                    onConnected()
-                    onStatus("Подключено")
-
+                    val sock = Socket(hostIp, port).also { socket = it }
+                    val o = DataOutputStream(sock.getOutputStream()).also { out.set(it) }
+                    o.writeInt(viewerWidth); o.writeInt(viewerHeight); o.flush()
+                    onConnected(); onStatus("Подключено")
                     val inp = DataInputStream(sock.getInputStream())
                     while (isActive) {
                         val type = inp.readByte()
                         val size = inp.readInt()
-                        if (size <= 0 || size > 20_000_000) break
-                        val data = ByteArray(size)
-                        inp.readFully(data)
-                        onFrame(data, type == StreamServer.TYPE_CONFIG)
+                        if (size <= 0 || size > 5_000_000) break
+                        val data = ByteArray(size); inp.readFully(data)
+                        when (type) {
+                            StreamServer.TYPE_AUDIO_CONFIG -> onAudioFrame(data, true)
+                            StreamServer.TYPE_AUDIO -> onAudioFrame(data, false)
+                            StreamServer.TYPE_CLIPBOARD -> onClipboard(String(data, Charsets.UTF_8))
+                        }
                     }
-                } catch (e: Exception) {
-                    // ignore CancellationException — coroutine is stopping
-                }
-                output.set(null)
-                socket?.close()
-                socket = null
+                } catch (e: Exception) { /* reconnect */ }
+                out.set(null); socket?.close(); socket = null
                 if (!isActive) break
-                onConnectionLost()
-                onStatus("Переподключение...")
-                delay(3_000)
+                onConnectionLost(); onStatus("Переподключение..."); delay(3_000)
             }
             onDisconnected()
         }
     }
 
-    fun sendTouch(action: Int, x: Float, y: Float) {
-        scope.launch {
-            try {
-                val out = output.get() ?: return@launch
-                out.writeByte(StreamServer.MSG_TOUCH.toInt())
-                out.writeByte(action)
-                out.writeInt(x.toBits())
-                out.writeInt(y.toBits())
-                out.flush()
-            } catch (e: Exception) { }
-        }
+    fun sendTouch(action: Int, x: Float, y: Float) = sendRaw {
+        it.writeByte(StreamServer.MSG_TOUCH.toInt())
+        it.writeByte(action); it.writeInt(x.toBits()); it.writeInt(y.toBits()); it.flush()
     }
 
-    fun disconnect() {
-        scope.cancel()
-        socket?.close()
+    fun sendClipboard(text: String) = sendRaw {
+        val b = text.toByteArray(Charsets.UTF_8)
+        it.writeByte(StreamServer.MSG_CLIPBOARD.toInt())
+        it.writeInt(b.size); it.write(b); it.flush()
     }
+
+    private fun sendRaw(block: (DataOutputStream) -> Unit) {
+        scope.launch { try { out.get()?.let { block(it) } } catch (e: Exception) { } }
+    }
+
+    fun disconnect() { scope.cancel(); socket?.close() }
 }
