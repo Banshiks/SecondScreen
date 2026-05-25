@@ -7,31 +7,13 @@
     android:gravity="center_horizontal">
 
     <TextView
-        android:id="@+id/tvIpAddress"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="IP: —"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="8dp"
-        android:layout_marginTop="16dp"/>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="введи этот адрес в Nothing Phone"
-        android:textSize="13sp"
-        android:textColor="#AAAAAA"
-        android:layout_marginBottom="40dp"/>
-
-    <TextView
         android:id="@+id/tvStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Остановлен"
         android:textSize="18sp"
         android:textColor="#FFFFFF"
+        android:layout_marginTop="16dp"
         android:layout_marginBottom="8dp"/>
 
     <TextView
@@ -62,10 +44,37 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Порт стрима: 8765\nПорт touch: 8766"
+        android:text="Твой IP адрес:"
+        android:textSize="13sp"
+        android:textColor="#AAAAAA"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="4dp"/>
+
+    <TextView
+        android:id="@+id/tvIpAddress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="введи этот адрес в приложение на Nothing Phone"
         android:textSize="12sp"
         android:textColor="#AAAAAA"
         android:gravity="center"
-        android:layout_marginTop="40dp"/>
+        android:layout_marginBottom="32dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Порт стрима: 8765 · Порт touch: 8766"
+        android:textSize="12sp"
+        android:textColor="#666666"
+        android:gravity="center"/>
 
 </LinearLayout>
