@@ -13,6 +13,7 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.net.NetworkInterface
 
 class MainActivity : AppCompatActivity() {
 
@@ -57,10 +58,10 @@ class MainActivity : AppCompatActivity() {
         tvIpAddress = findViewById(R.id.tvIpAddress)
         tvConnections = findViewById(R.id.tvConnections)
 
-        tvIpAddress.text = "IP: ${getWifiIpAddress()}"
+        val ip = getLocalIpAddress()
+        tvIpAddress.text = if (ip != null) "IP: $ip" else "IP: не найден (проверьте Wi-Fi)"
 
         btnStart.setOnClickListener {
-            // Запрашиваем разрешение на захват экрана
             val captureIntent = projectionManager.createScreenCaptureIntent()
             startActivityForResult(captureIntent, CAPTURE_REQUEST_CODE)
         }
@@ -92,7 +93,7 @@ class MainActivity : AppCompatActivity() {
         startForegroundService(serviceIntent)
         bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
 
-        tvStatus.text = "Сервер запущен · порт 8765"
+        tvStatus.text = "Сервер запущен · порт ${ScreenCaptureService.WS_PORT}"
         updateUi(true)
     }
 
@@ -112,16 +113,37 @@ class MainActivity : AppCompatActivity() {
         btnStop.isEnabled = running
     }
 
-    private fun getWifiIpAddress(): String {
-        val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
-        val ip = wifiManager.connectionInfo.ipAddress
-        return String.format(
-            "%d.%d.%d.%d",
-            ip and 0xff,
-            (ip shr 8) and 0xff,
-            (ip shr 16) and 0xff,
-            (ip shr 24) and 0xff
-        )
+    private fun getLocalIpAddress(): String? {
+        try {
+            // Сначала пробуем через NetworkInterface (работает на Android 12+)
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            for (intf in interfaces) {
+                if (intf.isLoopback || !intf.isUp) continue
+                for (addr in intf.inetAddresses) {
+                    if (addr.isLoopbackAddress) continue
+                    val ip = addr.hostAddress ?: continue
+                    // Берём только IPv4
+                    if (!ip.contains(':')) return ip
+                }
+            }
+        } catch (e: Exception) {
+            // Fallback на WifiManager
+        }
+
+        // Запасной вариант через WifiManager
+        try {
+            @Suppress("DEPRECATION")
+            val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+            @Suppress("DEPRECATION")
+            val ip = wifiManager.connectionInfo.ipAddress
+            if (ip != 0) {
+                return String.format("%d.%d.%d.%d",
+                    ip and 0xff, (ip shr 8) and 0xff,
+                    (ip shr 16) and 0xff, (ip shr 24) and 0xff)
+            }
+        } catch (e: Exception) { /* ignore */ }
+
+        return null
     }
 
     override fun onDestroy() {
