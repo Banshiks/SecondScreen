@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SecondScreen</string>
+    <string name="accessibility_description">Позволяет управлять экраном другого устройства через SecondScreen</string>
+    <string name="accessibility_label">SecondScreen Touch</string>
 </resources>

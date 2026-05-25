@@ -8,7 +8,7 @@ import android.media.projection.MediaProjectionManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.Bundle
-import android.view.LayoutInflater
+import android.provider.Settings
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -26,12 +26,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var cardBroadcast: MaterialCardView
     private lateinit var cardStop: MaterialCardView
+    private lateinit var cardAccessibility: MaterialCardView
     private lateinit var tvConnected: TextView
     private lateinit var tvDiscovery: TextView
     private lateinit var layoutDevices: LinearLayout
 
     private val devices = mutableMapOf<String, NsdServiceInfo>()
-    private var hosting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,14 +43,40 @@ class MainActivity : AppCompatActivity() {
 
         cardBroadcast = findViewById(R.id.cardBroadcast)
         cardStop = findViewById(R.id.cardStop)
+        cardAccessibility = findViewById(R.id.cardAccessibility)
         tvConnected = findViewById(R.id.tvConnected)
         tvDiscovery = findViewById(R.id.tvDiscovery)
         layoutDevices = findViewById(R.id.layoutDevices)
 
         cardBroadcast.setOnClickListener { requestCapture() }
         cardStop.setOnClickListener { stopHosting() }
+        cardAccessibility.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
 
         startDiscovery()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateAccessibilityCard()
+    }
+
+    private fun isAccessibilityEnabled(): Boolean {
+        val service = "${packageName}/${TouchAccessibilityService::class.java.name}"
+        return try {
+            val enabled = Settings.Secure.getString(contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
+            enabled.contains(service)
+        } catch (e: Exception) { false }
+    }
+
+    private fun updateAccessibilityCard() {
+        if (isAccessibilityEnabled()) {
+            cardAccessibility.visibility = View.GONE
+        } else {
+            cardAccessibility.visibility = View.VISIBLE
+        }
     }
 
     private fun requestCapture() {
@@ -69,7 +95,6 @@ class MainActivity : AppCompatActivity() {
                 putExtra(HostService.EXTRA_RESULT_CODE, resultCode)
                 putExtra(HostService.EXTRA_RESULT_DATA, data)
             })
-            hosting = true
             cardBroadcast.visibility = View.GONE
             cardStop.visibility = View.VISIBLE
         }
@@ -77,7 +102,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopHosting() {
         stopService(Intent(this, HostService::class.java))
-        hosting = false
         cardBroadcast.visibility = View.VISIBLE
         cardStop.visibility = View.GONE
         tvConnected.text = ""

@@ -9,11 +9,13 @@ import java.net.Socket
 class StreamServer(
     private val port: Int,
     private val onClientChange: (Int) -> Unit,
-    private val onViewerDimensions: (Int, Int) -> Unit = { _, _ -> }
+    private val onViewerDimensions: (Int, Int) -> Unit = { _, _ -> },
+    private val onTouchEvent: (action: Int, x: Float, y: Float) -> Unit = { _, _, _ -> }
 ) {
     companion object {
-        const val TYPE_FRAME: Byte = 0
-        const val TYPE_CONFIG: Byte = 1
+        const val TYPE_FRAME: Byte = 0   // server → client
+        const val TYPE_CONFIG: Byte = 1  // server → client
+        const val MSG_TOUCH: Byte = 2    // client → server
     }
 
     private var serverSocket: ServerSocket? = null
@@ -35,20 +37,34 @@ class StreamServer(
         scope.launch {
             try {
                 val input = DataInputStream(socket.getInputStream())
+                val out = DataOutputStream(socket.getOutputStream())
+
+                // Handshake: read viewer screen dimensions
                 val viewerW = input.readInt()
                 val viewerH = input.readInt()
                 onViewerDimensions(viewerW, viewerH)
 
-                val out = DataOutputStream(socket.getOutputStream())
+                // Send cached SPS/PPS so decoder initializes immediately
                 lastSpsData?.let { sps ->
                     out.writeByte(TYPE_CONFIG.toInt())
                     out.writeInt(sps.size)
                     out.write(sps)
                     out.flush()
                 }
+
                 synchronized(clients) { clients.add(out); onClientChange(clients.size) }
-                try { delay(Long.MAX_VALUE) }
-                finally {
+                try {
+                    // Read touch events from client
+                    while (isActive) {
+                        val msgType = input.readByte()
+                        if (msgType == MSG_TOUCH) {
+                            val action = input.readByte().toInt()
+                            val x = Float.fromBits(input.readInt())
+                            val y = Float.fromBits(input.readInt())
+                            onTouchEvent(action, x, y)
+                        }
+                    }
+                } finally {
                     synchronized(clients) { clients.remove(out); onClientChange(clients.size) }
                     socket.close()
                 }

@@ -11,7 +11,28 @@
             android:textColor="#FFFFFF" android:layout_marginTop="48dp" android:layout_marginBottom="4dp"/>
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="Трансляция экрана по Wi-Fi" android:textSize="14sp"
-            android:textColor="#666680" android:layout_marginBottom="36dp"/>
+            android:textColor="#666680" android:layout_marginBottom="24dp"/>
+        <com.google.android.material.card.MaterialCardView android:id="@+id/cardAccessibility"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"
+            app:cardBackgroundColor="#1A1A00" app:cardCornerRadius="24dp" app:cardElevation="0dp"
+            app:strokeColor="#4A4A00" app:strokeWidth="1dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="20dp" android:gravity="center_vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="&#9888;" android:textSize="28sp"/>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical" android:layout_marginLeft="14dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Включить управление касаниями"
+                        android:textSize="15sp" android:textStyle="bold"
+                        android:textColor="#FFE040" android:layout_marginBottom="3dp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Нажми и включи SecondScreen Touch в Спец. возможностях"
+                        android:textSize="12sp" android:textColor="#AA9900"/>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
         <com.google.android.material.card.MaterialCardView android:id="@+id/cardBroadcast"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"

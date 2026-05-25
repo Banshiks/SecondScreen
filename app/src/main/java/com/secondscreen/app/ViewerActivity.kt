@@ -3,6 +3,7 @@ package com.secondscreen.app
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
@@ -45,6 +46,17 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         tvStatus.text = "Подключение${if (name.isNotEmpty()) " к $name" else ""}..."
 
         surfaceView.holder.addCallback(this)
+        surfaceView.setOnTouchListener { _, event ->
+            val client = streamClient ?: return@setOnTouchListener false
+            val action = when (event.action) {
+                MotionEvent.ACTION_DOWN -> StreamClient.ACTION_DOWN
+                MotionEvent.ACTION_MOVE -> StreamClient.ACTION_MOVE
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> StreamClient.ACTION_UP
+                else -> return@setOnTouchListener false
+            }
+            client.sendTouch(action, event.x, event.y)
+            true
+        }
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
     }
 
@@ -61,9 +73,20 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             onFrame = { data, isConfig -> decode(data, isConfig) },
             onStatus = { s -> runOnUiThread { tvStatus.text = s } },
             onConnected = { runOnUiThread { tvStatus.visibility = View.GONE } },
-            onDisconnected = { runOnUiThread { tvStatus.visibility = View.VISIBLE; tvStatus.text = "Соединение потеряно" } }
+            onConnectionLost = { resetDecoder() },
+            onDisconnected = {}
         )
         streamClient?.connect()
+    }
+
+    private fun resetDecoder() {
+        decoderStarted = false
+        decoder?.run { try { stop(); release() } catch (e: Exception) { } }
+        decoder = null
+        runOnUiThread {
+            tvStatus.visibility = View.VISIBLE
+            tvStatus.text = "Переподключение..."
+        }
     }
 
     private fun decode(data: ByteArray, isConfig: Boolean) {
@@ -72,6 +95,9 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             val surface = pendingSurface?.surface ?: return
             val w = if (surfaceW > 0) surfaceW else 1920
             val h = if (surfaceH > 0) surfaceH else 1080
+            // Release old decoder before creating new one
+            decoder?.run { try { stop(); release() } catch (e: Exception) { } }
+            decoder = null
             try {
                 decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
                     configure(
@@ -104,7 +130,8 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         streamClient?.disconnect(); streamClient = null
-        decoder?.stop(); decoder?.release(); decoder = null
+        decoder?.run { try { stop(); release() } catch (e: Exception) { } }
+        decoder = null
         decoderStarted = false; pendingSurface = null
         surfaceW = 0; surfaceH = 0
     }

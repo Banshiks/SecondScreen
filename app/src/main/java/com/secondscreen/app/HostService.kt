@@ -76,7 +76,10 @@ class HostService : Service() {
         streamServer = StreamServer(
             port = STREAM_PORT,
             onClientChange = { count -> onClientCount?.invoke(count) },
-            onViewerDimensions = { w, h -> onViewerConnected(w, h) }
+            onViewerDimensions = { w, h -> onViewerConnected(w, h) },
+            onTouchEvent = { action, x, y ->
+                TouchAccessibilityService.instance?.handleTouch(action, x, y)
+            }
         )
         streamServer?.start()
         scope.launch { startCapture(streamW, streamH) }

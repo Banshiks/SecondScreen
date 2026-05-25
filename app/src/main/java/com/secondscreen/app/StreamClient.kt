@@ -4,6 +4,7 @@ import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.Socket
+import java.util.concurrent.atomic.AtomicReference
 
 class StreamClient(
     private val hostIp: String,
@@ -13,39 +14,70 @@ class StreamClient(
     private val onFrame: (ByteArray, isConfig: Boolean) -> Unit,
     private val onStatus: (String) -> Unit,
     private val onConnected: () -> Unit = {},
+    private val onConnectionLost: () -> Unit = {},
     private val onDisconnected: () -> Unit = {}
 ) {
+    companion object {
+        const val ACTION_DOWN = TouchAccessibilityService.ACTION_DOWN
+        const val ACTION_MOVE = TouchAccessibilityService.ACTION_MOVE
+        const val ACTION_UP   = TouchAccessibilityService.ACTION_UP
+    }
+
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var socket: Socket? = null
+    private val output = AtomicReference<DataOutputStream?>(null)
 
     fun connect() {
         scope.launch {
-            try {
-                onStatus("Подключение к $hostIp...")
-                socket = Socket(hostIp, port)
-                // Tell host our screen dimensions so it streams at the right resolution
-                val out = DataOutputStream(socket!!.getOutputStream())
-                out.writeInt(viewerWidth)
-                out.writeInt(viewerHeight)
-                out.flush()
+            while (isActive) {
+                try {
+                    onStatus("Подключение к $hostIp...")
+                    val sock = Socket(hostIp, port)
+                    socket = sock
 
-                onConnected()
-                onStatus("Подключено")
-                val input = DataInputStream(socket!!.getInputStream())
-                while (isActive) {
-                    val type = input.readByte()
-                    val size = input.readInt()
-                    if (size <= 0 || size > 20_000_000) break
-                    val data = ByteArray(size)
-                    input.readFully(data)
-                    onFrame(data, type == StreamServer.TYPE_CONFIG)
+                    val out = DataOutputStream(sock.getOutputStream())
+                    output.set(out)
+                    out.writeInt(viewerWidth)
+                    out.writeInt(viewerHeight)
+                    out.flush()
+
+                    onConnected()
+                    onStatus("Подключено")
+
+                    val inp = DataInputStream(sock.getInputStream())
+                    while (isActive) {
+                        val type = inp.readByte()
+                        val size = inp.readInt()
+                        if (size <= 0 || size > 20_000_000) break
+                        val data = ByteArray(size)
+                        inp.readFully(data)
+                        onFrame(data, type == StreamServer.TYPE_CONFIG)
+                    }
+                } catch (e: Exception) {
+                    // ignore CancellationException — coroutine is stopping
                 }
-            } catch (e: Exception) {
-                onStatus("Ошибка подключения")
-            } finally {
+                output.set(null)
                 socket?.close()
-                onDisconnected()
+                socket = null
+                if (!isActive) break
+                onConnectionLost()
+                onStatus("Переподключение...")
+                delay(3_000)
             }
+            onDisconnected()
+        }
+    }
+
+    fun sendTouch(action: Int, x: Float, y: Float) {
+        scope.launch {
+            try {
+                val out = output.get() ?: return@launch
+                out.writeByte(StreamServer.MSG_TOUCH.toInt())
+                out.writeByte(action)
+                out.writeInt(x.toBits())
+                out.writeInt(y.toBits())
+                out.flush()
+            } catch (e: Exception) { }
         }
     }
 
