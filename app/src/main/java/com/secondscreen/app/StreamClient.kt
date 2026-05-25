@@ -7,7 +7,7 @@ import java.net.Socket
 class StreamClient(
     private val hostIp: String,
     private val port: Int,
-    private val onFrame: (ByteArray) -> Unit,
+    private val onFrame: (ByteArray, isConfig: Boolean) -> Unit,
     private val onStatus: (String) -> Unit,
     private val onConnected: () -> Unit = {},
     private val onDisconnected: () -> Unit = {}
@@ -24,11 +24,12 @@ class StreamClient(
                 onStatus("Подключено")
                 val input = DataInputStream(socket!!.getInputStream())
                 while (isActive) {
+                    val type = input.readByte()
                     val size = input.readInt()
                     if (size <= 0 || size > 20_000_000) break
                     val data = ByteArray(size)
                     input.readFully(data)
-                    onFrame(data)
+                    onFrame(data, type == StreamServer.TYPE_CONFIG)
                 }
             } catch (e: Exception) {
                 onStatus("Ошибка подключения")

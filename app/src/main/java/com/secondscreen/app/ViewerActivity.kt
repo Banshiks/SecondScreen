@@ -22,6 +22,8 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private lateinit var tvStatus: TextView
     private var streamClient: StreamClient? = null
     private var decoder: MediaCodec? = null
+    private var decoderStarted = false
+    private var pendingSurface: SurfaceHolder? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,19 +49,11 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private fun startStreaming(holder: SurfaceHolder) {
         val ip = intent.getStringExtra(EXTRA_HOST_IP) ?: return
         val port = intent.getIntExtra(EXTRA_HOST_PORT, HostService.STREAM_PORT)
-
-        decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
-            configure(
-                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC,
-                    HostService.STREAM_WIDTH, HostService.STREAM_HEIGHT),
-                holder.surface, null, 0
-            )
-            start()
-        }
+        pendingSurface = holder
 
         streamClient = StreamClient(
             hostIp = ip, port = port,
-            onFrame = { data -> decode(data) },
+            onFrame = { data, isConfig -> decode(data, isConfig) },
             onStatus = { s -> runOnUiThread { tvStatus.text = s } },
             onConnected = { runOnUiThread { tvStatus.visibility = View.GONE } },
             onDisconnected = { runOnUiThread { tvStatus.visibility = View.VISIBLE; tvStatus.text = "Соединение потеряно" } }
@@ -67,18 +61,37 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         streamClient?.connect()
     }
 
-    private fun decode(data: ByteArray) {
+    private fun decode(data: ByteArray, isConfig: Boolean) {
+        if (!decoderStarted) {
+            if (!isConfig) return
+            val surface = pendingSurface?.surface ?: return
+            try {
+                decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
+                    configure(
+                        MediaFormat.createVideoFormat(
+                            MediaFormat.MIMETYPE_VIDEO_AVC,
+                            HostService.STREAM_WIDTH, HostService.STREAM_HEIGHT
+                        ),
+                        surface, null, 0
+                    )
+                    start()
+                }
+                decoderStarted = true
+            } catch (e: Exception) { return }
+        }
+
         val codec = decoder ?: return
         try {
             val idx = codec.dequeueInputBuffer(5_000)
             if (idx >= 0) {
                 codec.getInputBuffer(idx)!!.apply { clear(); put(data) }
-                codec.queueInputBuffer(idx, 0, data.size, System.nanoTime() / 1000, 0)
+                val flags = if (isConfig) MediaCodec.BUFFER_FLAG_CODEC_CONFIG else 0
+                codec.queueInputBuffer(idx, 0, data.size, System.nanoTime() / 1000, flags)
             }
             val info = MediaCodec.BufferInfo()
             val outIdx = codec.dequeueOutputBuffer(info, 0)
             if (outIdx >= 0) codec.releaseOutputBuffer(outIdx, true)
-        } catch (e: Exception) { /* ignore */ }
+        } catch (e: Exception) { }
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) { startStreaming(holder) }
@@ -86,6 +99,7 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         streamClient?.disconnect(); streamClient = null
         decoder?.stop(); decoder?.release(); decoder = null
+        decoderStarted = false; pendingSurface = null
     }
 
     override fun onDestroy() {
