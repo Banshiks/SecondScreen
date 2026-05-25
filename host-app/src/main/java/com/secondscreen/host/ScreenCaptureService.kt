@@ -14,7 +14,9 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Binder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
@@ -28,11 +30,10 @@ class ScreenCaptureService : Service() {
         private const val CHANNEL_ID = "screen_capture_channel"
         private const val NOTIF_ID = 1
 
-        // Параметры стрима
         const val STREAM_WIDTH = 1280
         const val STREAM_HEIGHT = 720
         const val STREAM_FPS = 30
-        const val STREAM_BITRATE = 2_000_000  // 2 Mbps
+        const val STREAM_BITRATE = 2_000_000
         const val WS_PORT = 8765
     }
 
@@ -42,6 +43,7 @@ class ScreenCaptureService : Service() {
 
     private val binder = LocalBinder()
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
@@ -50,6 +52,12 @@ class ScreenCaptureService : Service() {
     private var touchReceiver: TouchReceiver? = null
 
     var onClientConnected: ((Int) -> Unit)? = null
+
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            stopSelf()
+        }
+    }
 
     override fun onBind(intent: Intent): IBinder = binder
 
@@ -62,10 +70,14 @@ class ScreenCaptureService : Service() {
         startForeground(NOTIF_ID, buildNotification())
 
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
+        @Suppress("DEPRECATION")
         val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)!!
 
         val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjection = projectionManager.getMediaProjection(resultCode, resultData)
+
+        // Обязательно для Android 14+
+        mediaProjection?.registerCallback(projectionCallback, mainHandler)
 
         serviceScope.launch {
             startStreaming()
@@ -75,27 +87,25 @@ class ScreenCaptureService : Service() {
     }
 
     private suspend fun startStreaming() {
-        // Запускаем WebSocket сервер
         streamingServer = StreamingServer(WS_PORT) { clientCount ->
             onClientConnected?.invoke(clientCount)
         }
         streamingServer?.start()
 
-        // Запускаем приёмник touch-событий
         touchReceiver = TouchReceiver(WS_PORT + 1)
         touchReceiver?.start()
 
-        // Получаем метрики экрана
+        @Suppress("DEPRECATION")
         val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
         (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getMetrics(metrics)
         val density = metrics.densityDpi
 
-        // Инициализируем H.264 кодек
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, STREAM_WIDTH, STREAM_HEIGHT).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, STREAM_BITRATE)
             setInteger(MediaFormat.KEY_FRAME_RATE, STREAM_FPS)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // I-frame каждую секунду
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
         }
 
         mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
@@ -105,7 +115,6 @@ class ScreenCaptureService : Service() {
         val inputSurface = mediaCodec!!.createInputSurface()
         mediaCodec!!.start()
 
-        // Виртуальный дисплей → surface кодека
         virtualDisplay = mediaProjection?.createVirtualDisplay(
             "SecondScreenCapture",
             STREAM_WIDTH, STREAM_HEIGHT, density,
@@ -113,7 +122,6 @@ class ScreenCaptureService : Service() {
             inputSurface, null, null
         )
 
-        // Цикл кодирования и отправки
         encodeLoop()
     }
 
@@ -127,7 +135,6 @@ class ScreenCaptureService : Service() {
                 val outputBuffer = mediaCodec!!.getOutputBuffer(outputIndex) ?: continue
 
                 if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
-                    // SPS/PPS — отправляем как инициализационные данные
                     val spsData = ByteArray(bufferInfo.size)
                     outputBuffer.get(spsData)
                     streamingServer?.sendSpsData(spsData)
@@ -146,6 +153,7 @@ class ScreenCaptureService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+        mediaProjection?.unregisterCallback(projectionCallback)
         mediaCodec?.stop()
         mediaCodec?.release()
         virtualDisplay?.release()
