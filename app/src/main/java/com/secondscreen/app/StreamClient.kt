@@ -22,6 +22,7 @@ class StreamClient(
         const val ACTION_DOWN = TouchAccessibilityService.ACTION_DOWN
         const val ACTION_MOVE = TouchAccessibilityService.ACTION_MOVE
         const val ACTION_UP   = TouchAccessibilityService.ACTION_UP
+        private const val MAX_FILE_SIZE = 50 * 1024 * 1024
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -49,7 +50,7 @@ class StreamClient(
                             StreamServer.TYPE_CLIPBOARD -> onClipboard(String(data, Charsets.UTF_8))
                         }
                     }
-                } catch (e: Exception) { /* reconnect */ }
+                } catch (e: Exception) { }
                 out.set(null); socket?.close(); socket = null
                 if (!isActive) break
                 onConnectionLost(); onStatus("Переподключение..."); delay(3_000)
@@ -67,6 +68,19 @@ class StreamClient(
         val b = text.toByteArray(Charsets.UTF_8)
         it.writeByte(StreamServer.MSG_CLIPBOARD.toInt())
         it.writeInt(b.size); it.write(b); it.flush()
+    }
+
+    fun sendFile(fileName: String, data: ByteArray) {
+        if (data.size > MAX_FILE_SIZE) return
+        sendRaw {
+            val nameBytes = fileName.toByteArray(Charsets.UTF_8)
+            it.writeByte(StreamServer.MSG_FILE.toInt())
+            it.writeInt(nameBytes.size)
+            it.write(nameBytes)
+            it.writeInt(data.size)
+            it.write(data)
+            it.flush()
+        }
     }
 
     private fun sendRaw(block: (DataOutputStream) -> Unit) {

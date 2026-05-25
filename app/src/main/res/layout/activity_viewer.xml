@@ -16,4 +16,11 @@
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:contentDescription="Back"
         app:backgroundTint="#AA000000" app:fabSize="mini"/>
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnSendFile"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_margin="16dp" android:layout_gravity="top|end"
+        android:src="@android:drawable/ic_menu_upload"
+        android:contentDescription="Send file"
+        app:backgroundTint="#AA000000" app:fabSize="mini"/>
 </FrameLayout>

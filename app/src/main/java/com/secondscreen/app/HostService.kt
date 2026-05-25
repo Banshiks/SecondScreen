@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -27,15 +28,19 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
+import java.io.File
 
 class HostService : Service() {
     companion object {
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         const val STREAM_PORT = 8765
+        const val ACTION_PAUSE = "com.secondscreen.app.ACTION_PAUSE"
+        const val ACTION_RESUME = "com.secondscreen.app.ACTION_RESUME"
         private const val CHANNEL_ID = "ss_host"
         private const val NOTIF_ID = 1
         private const val MAX_DIM = 1920
@@ -63,6 +68,8 @@ class HostService : Service() {
 
     private var streamW = 1920
     private var streamH = 1080
+    private var isPaused = false
+    private var savedInterruptionFilter = -1
 
     var onClientCount: ((Int) -> Unit)? = null
 
@@ -74,6 +81,16 @@ class HostService : Service() {
     override fun onCreate() { super.onCreate(); createChannel() }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_PAUSE) {
+            isPaused = true
+            updateNotification()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_RESUME) {
+            isPaused = false
+            updateNotification()
+            return START_NOT_STICKY
+        }
         if (intent == null) return START_NOT_STICKY
         startForeground(NOTIF_ID, buildNotification())
         val code = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
@@ -96,12 +113,49 @@ class HostService : Service() {
                     getSystemService(ClipboardManager::class.java)
                         .setPrimaryClip(ClipData.newPlainText("", text))
                 }
-            }
+            },
+            onFileReceived = { name, data -> saveReceivedFile(name, data) }
         )
         streamServer?.start()
         scope.launch { startCapture(streamW, streamH) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startClipboardSync()
+        enableDnd()
         return START_NOT_STICKY
+    }
+
+    private fun enableDnd() {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm.isNotificationPolicyAccessGranted) {
+            savedInterruptionFilter = nm.currentInterruptionFilter
+            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
+        }
+    }
+
+    private fun disableDnd() {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm.isNotificationPolicyAccessGranted && savedInterruptionFilter >= 0) {
+            nm.setInterruptionFilter(savedInterruptionFilter)
+            savedInterruptionFilter = -1
+        }
+    }
+
+    private fun saveReceivedFile(name: String, data: ByteArray) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val dir = android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS)
+                dir.mkdirs()
+                val file = File(dir, name)
+                file.writeBytes(data)
+                mainHandler.post {
+                    Toast.makeText(this@HostService, "Файл получен: $name", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                mainHandler.post {
+                    Toast.makeText(this@HostService, "Ошибка сохранения файла", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun onViewerConnected(viewerW: Int, viewerH: Int) {
@@ -154,9 +208,9 @@ class HostService : Service() {
                 val buf = videoCodec!!.getOutputBuffer(idx) ?: continue
                 val data = ByteArray(info.size); buf.get(data)
                 if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
-                    udpSender?.sendConfig(data)
+                    if (!isPaused) udpSender?.sendConfig(data)
                 } else if (info.size > 0) {
-                    udpSender?.sendFrame(data)
+                    if (!isPaused) udpSender?.sendFrame(data)
                 }
                 videoCodec!!.releaseOutputBuffer(idx, false)
             }
@@ -238,6 +292,7 @@ class HostService : Service() {
         videoCodec?.stop(); videoCodec?.release()
         virtualDisplay?.release(); mediaProjection?.stop()
         udpSender?.stop(); streamServer?.stop()
+        disableDnd()
     }
 
     private fun createChannel() {
@@ -246,9 +301,29 @@ class HostService : Service() {
                 NotificationChannel(CHANNEL_ID, "Трансляция", NotificationManager.IMPORTANCE_LOW))
     }
 
-    private fun buildNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(): Notification {
+        val pauseAction = if (isPaused) {
+            val intent = Intent(this, HostService::class.java).setAction(ACTION_RESUME)
+            val pi = PendingIntent.getService(this, 1, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            NotificationCompat.Action(android.R.drawable.ic_media_play, "Возобновить", pi)
+        } else {
+            val intent = Intent(this, HostService::class.java).setAction(ACTION_PAUSE)
+            val pi = PendingIntent.getService(this, 2, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            NotificationCompat.Action(android.R.drawable.ic_media_pause, "Пауза", pi)
+        }
+        val text = if (isPaused) "Трансляция на паузе" else "Экран транслируется по Wi-Fi"
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SecondScreen")
-            .setContentText("Экран транслируется по Wi-Fi")
-            .setSmallIcon(android.R.drawable.ic_menu_view).build()
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .addAction(pauseAction)
+            .build()
+    }
+
+    private fun updateNotification() {
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.notify(NOTIF_ID, buildNotification())
+    }
 }

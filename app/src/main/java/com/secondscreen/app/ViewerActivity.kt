@@ -1,12 +1,15 @@
 package com.secondscreen.app
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.MediaCodec
 import android.media.MediaFormat
+import android.net.Uri
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -14,6 +17,7 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.nio.ByteBuffer
 
@@ -23,6 +27,8 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         const val EXTRA_HOST_IP = "host_ip"
         const val EXTRA_HOST_PORT = "host_port"
         const val EXTRA_DEVICE_NAME = "device_name"
+        private const val FILE_PICK_REQUEST = 2001
+        private const val MAX_FILE_SIZE = 50 * 1024 * 1024
     }
 
     private lateinit var surfaceView: SurfaceView
@@ -30,18 +36,15 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var streamClient: StreamClient? = null
     private var udpReceiver: UdpVideoReceiver? = null
 
-    // Video decoder
     private var decoder: MediaCodec? = null
     private var decoderStarted = false
     private var pendingSurface: SurfaceHolder? = null
     private var surfaceW = 0; private var surfaceH = 0
 
-    // Audio
     private var audioDecoder: MediaCodec? = null
     private var audioTrack: AudioTrack? = null
     private var audioReady = false
 
-    // Clipboard
     private var clipManager: ClipboardManager? = null
     private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
     private var ignoreNextClip = false
@@ -70,7 +73,61 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             true
         }
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
+        findViewById<View>(R.id.btnSendFile).setOnClickListener { openFilePicker() }
         setupClipboardSync()
+    }
+
+    private fun openFilePicker() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "*/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        startActivityForResult(Intent.createChooser(intent, "Выбрать файл"), FILE_PICK_REQUEST)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == FILE_PICK_REQUEST && resultCode == Activity.RESULT_OK) {
+            val uri: Uri = data?.data ?: return
+            sendFile(uri)
+        }
+    }
+
+    private fun sendFile(uri: Uri) {
+        val client = streamClient ?: run {
+            Toast.makeText(this, "Нет подключения", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Thread {
+            try {
+                val inputStream = contentResolver.openInputStream(uri) ?: return@Thread
+                val bytes = inputStream.readBytes()
+                inputStream.close()
+                if (bytes.size > MAX_FILE_SIZE) {
+                    runOnUiThread {
+                        Toast.makeText(this, "Файл слишком большой (макс 50MB)", Toast.LENGTH_SHORT).show()
+                    }
+                    return@Thread
+                }
+                val cursor = contentResolver.query(uri, null, null, null, null)
+                var fileName = "file"
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIdx >= 0) fileName = it.getString(nameIdx) ?: "file"
+                    }
+                }
+                client.sendFile(fileName, bytes)
+                runOnUiThread {
+                    Toast.makeText(this, "Файл отправлен: $fileName", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка отправки файла", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
     }
 
     private fun setupClipboardSync() {

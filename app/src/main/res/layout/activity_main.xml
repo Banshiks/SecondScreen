@@ -5,13 +5,16 @@
     android:layout_height="match_parent"
     android:background="#0A0A0F">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:paddingLeft="20dp" android:paddingRight="20dp" android:paddingBottom="32dp">
+        android:orientation="vertical" android:paddingLeft="20dp" android:paddingRight="20dp"
+        android:paddingBottom="32dp">
+
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="SecondScreen" android:textSize="30sp" android:textStyle="bold"
             android:textColor="#FFFFFF" android:layout_marginTop="48dp" android:layout_marginBottom="4dp"/>
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="Трансляция экрана по Wi-Fi" android:textSize="14sp"
             android:textColor="#666680" android:layout_marginBottom="24dp"/>
+
         <com.google.android.material.card.MaterialCardView android:id="@+id/cardAccessibility"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"
@@ -33,6 +36,53 @@
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView android:id="@+id/cardBattery"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"
+            android:visibility="gone"
+            app:cardBackgroundColor="#1A1200" app:cardCornerRadius="24dp" app:cardElevation="0dp"
+            app:strokeColor="#4A3000" app:strokeWidth="1dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="20dp" android:gravity="center_vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="&#128267;" android:textSize="28sp"/>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical" android:layout_marginLeft="14dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Оптимизация батареи"
+                        android:textSize="15sp" android:textStyle="bold"
+                        android:textColor="#FFE040" android:layout_marginBottom="3dp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Отключи для стабильной трансляции"
+                        android:textSize="12sp" android:textColor="#AA7700"/>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView android:id="@+id/cardDnd"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"
+            android:visibility="gone"
+            app:cardBackgroundColor="#0A1A1A" app:cardCornerRadius="24dp" app:cardElevation="0dp"
+            app:strokeColor="#005050" app:strokeWidth="1dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="20dp" android:gravity="center_vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="&#128276;" android:textSize="28sp"/>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical" android:layout_marginLeft="14dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Разрешить режим Не беспокоить"
+                        android:textSize="15sp" android:textStyle="bold"
+                        android:textColor="#40E0E0" android:layout_marginBottom="3dp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Тихий режим во время трансляции"
+                        android:textSize="12sp" android:textColor="#007070"/>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <com.google.android.material.card.MaterialCardView android:id="@+id/cardBroadcast"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"
@@ -55,6 +105,7 @@
                     android:text="&#8250;" android:textSize="28sp" android:textColor="#5050AA"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
         <com.google.android.material.card.MaterialCardView android:id="@+id/cardStop"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"
@@ -75,13 +126,33 @@
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView android:id="@+id/cardPause"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp" android:clickable="true" android:focusable="true"
+            android:visibility="gone" app:cardBackgroundColor="#0A1A2A" app:cardCornerRadius="24dp"
+            app:cardElevation="0dp" app:strokeColor="#103050" app:strokeWidth="1dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="20dp" android:gravity="center_vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="&#9208;" android:textSize="28sp"/>
+                <TextView android:id="@+id/tvPauseLabel" android:layout_width="0dp"
+                    android:layout_height="wrap_content" android:layout_weight="1"
+                    android:layout_marginLeft="14dp"
+                    android:text="Пауза трансляции" android:textSize="15sp" android:textStyle="bold"
+                    android:textColor="#60A0FF"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <com.google.android.material.card.MaterialCardView android:layout_width="match_parent"
             android:layout_height="wrap_content" app:cardBackgroundColor="#0F0F1A"
-            app:cardCornerRadius="24dp" app:cardElevation="0dp" app:strokeColor="#1E1E3A" app:strokeWidth="1dp">
+            app:cardCornerRadius="24dp" app:cardElevation="0dp"
+            app:strokeColor="#1E1E3A" app:strokeWidth="1dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="24dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="12dp">
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="&#128065;" android:textSize="22sp" android:layout_marginRight="12dp"/>
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content"
@@ -95,5 +166,35 @@
                     android:layout_height="wrap_content" android:orientation="vertical"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView android:id="@+id/cardManualIp"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="#0F0F1A" app:cardCornerRadius="24dp" app:cardElevation="0dp"
+            app:strokeColor="#1E1E3A" app:strokeWidth="1dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="24dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="&#127760;" android:textSize="22sp" android:layout_marginRight="12dp"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Подключиться по IP"
+                        android:textSize="18sp" android:textStyle="bold" android:textColor="#FFFFFF"/>
+                </LinearLayout>
+                <EditText android:id="@+id/etManualIp"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:hint="192.168.1.100" android:inputType="textUri"
+                    android:textColor="#FFFFFF" android:textColorHint="#555570"
+                    android:background="#1A1A2A" android:padding="14dp"
+                    android:layout_marginBottom="12dp"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnConnectIp"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Подключиться"
+                    app:backgroundTint="#2A2A6A"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
     </LinearLayout>
 </ScrollView>

@@ -3,4 +3,12 @@
     <string name="app_name">SecondScreen</string>
     <string name="accessibility_description">Позволяет управлять экраном другого устройства через SecondScreen</string>
     <string name="accessibility_label">SecondScreen Touch</string>
+    <string name="quick_tile_label">SecondScreen</string>
+    <string name="battery_card_title">Оптимизация батареи</string>
+    <string name="dnd_card_title">Разрешить режим Не беспокоить</string>
+    <string name="connect_by_ip">Подключиться по IP</string>
+    <string name="recent_devices">Недавние:</string>
+    <string name="pause_streaming">Пауза трансляции</string>
+    <string name="resume_streaming">Возобновить трансляцию</string>
+    <string name="send_file">Отправить файл</string>
 </resources>

@@ -12,16 +12,17 @@ class StreamServer(
     private val onClientChange: (Int) -> Unit,
     private val onClientConnect: (ip: InetAddress, w: Int, h: Int) -> Unit = { _, _, _ -> },
     private val onTouchEvent: (action: Int, x: Float, y: Float) -> Unit = { _, _, _ -> },
-    private val onClipboard: (String) -> Unit = {}
+    private val onClipboard: (String) -> Unit = {},
+    private val onFileReceived: (name: String, data: ByteArray) -> Unit = { _, _ -> }
 ) {
     companion object {
-        // Server → Client frame types (over TCP)
         const val TYPE_AUDIO_CONFIG: Byte = 2
         const val TYPE_AUDIO: Byte = 3
         const val TYPE_CLIPBOARD: Byte = 4
-        // Client → Server messages
         const val MSG_TOUCH: Byte = 5
         const val MSG_CLIPBOARD: Byte = 6
+        const val MSG_FILE: Byte = 7
+        private const val MAX_FILE_SIZE = 50 * 1024 * 1024
     }
 
     private var serverSocket: ServerSocket? = null
@@ -61,6 +62,20 @@ class StreamServer(
                                     val bytes = ByteArray(len)
                                     input.readFully(bytes)
                                     onClipboard(String(bytes, Charsets.UTF_8))
+                                }
+                            }
+                            MSG_FILE -> {
+                                val nameLen = input.readInt()
+                                if (nameLen in 1..512) {
+                                    val nameBytes = ByteArray(nameLen)
+                                    input.readFully(nameBytes)
+                                    val fileName = String(nameBytes, Charsets.UTF_8)
+                                    val dataLen = input.readInt()
+                                    if (dataLen in 1..MAX_FILE_SIZE) {
+                                        val data = ByteArray(dataLen)
+                                        input.readFully(data)
+                                        onFileReceived(fileName, data)
+                                    }
                                 }
                             }
                         }
