@@ -28,10 +28,10 @@ class HostService : Service() {
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         const val STREAM_PORT = 8765
-        const val STREAM_WIDTH = 1920
-        const val STREAM_HEIGHT = 1080
         private const val CHANNEL_ID = "ss_host"
         private const val NOTIF_ID = 1
+        private const val MAX_DIM = 1920
+        private fun align16(n: Int) = (n / 16) * 16
     }
 
     inner class LocalBinder : Binder() { fun get() = this@HostService }
@@ -45,6 +45,10 @@ class HostService : Service() {
     private var mediaCodec: MediaCodec? = null
     private var streamServer: StreamServer? = null
     private var nsdHelper: NsdHelper? = null
+    private var captureJob: Job? = null
+
+    private var streamW = 1920
+    private var streamH = 1080
 
     var onClientCount: ((Int) -> Unit)? = null
 
@@ -69,20 +73,36 @@ class HostService : Service() {
 
         nsdHelper = NsdHelper(this).also { it.registerService(STREAM_PORT) }
 
-        scope.launch { startCapture() }
+        streamServer = StreamServer(
+            port = STREAM_PORT,
+            onClientChange = { count -> onClientCount?.invoke(count) },
+            onViewerDimensions = { w, h -> onViewerConnected(w, h) }
+        )
+        streamServer?.start()
+        scope.launch { startCapture(streamW, streamH) }
         return START_NOT_STICKY
     }
 
-    private suspend fun startCapture() {
-        streamServer = StreamServer(STREAM_PORT) { count -> onClientCount?.invoke(count) }
-        streamServer?.start()
+    private fun onViewerConnected(viewerW: Int, viewerH: Int) {
+        val w = align16(viewerW.coerceIn(320, MAX_DIM))
+        val h = align16(viewerH.coerceIn(240, MAX_DIM))
+        if (w == streamW && h == streamH) return
+        streamW = w; streamH = h
+        scope.launch { startCapture(w, h) }
+    }
+
+    private suspend fun startCapture(w: Int, h: Int) {
+        captureJob?.cancelAndJoin()
+        mediaCodec?.stop(); mediaCodec?.release(); mediaCodec = null
+        virtualDisplay?.release(); virtualDisplay = null
+        streamServer?.clearSps()
 
         @Suppress("DEPRECATION")
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getMetrics(metrics)
 
-        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, STREAM_WIDTH, STREAM_HEIGHT).apply {
+        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, 8_000_000)
             setInteger(MediaFormat.KEY_FRAME_RATE, 30)
@@ -96,10 +116,10 @@ class HostService : Service() {
         mediaCodec!!.start()
 
         virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "SecondScreen", STREAM_WIDTH, STREAM_HEIGHT, metrics.densityDpi,
+            "SecondScreen", w, h, metrics.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, null
         )
-        encodeLoop()
+        captureJob = scope.launch { encodeLoop() }
     }
 
     private suspend fun encodeLoop() = withContext(Dispatchers.IO) {

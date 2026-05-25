@@ -1,12 +1,16 @@
 package com.secondscreen.app
 
 import kotlinx.coroutines.*
+import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.ServerSocket
 import java.net.Socket
 
-class StreamServer(private val port: Int, private val onClientChange: (Int) -> Unit) {
-
+class StreamServer(
+    private val port: Int,
+    private val onClientChange: (Int) -> Unit,
+    private val onViewerDimensions: (Int, Int) -> Unit = { _, _ -> }
+) {
     companion object {
         const val TYPE_FRAME: Byte = 0
         const val TYPE_CONFIG: Byte = 1
@@ -30,6 +34,11 @@ class StreamServer(private val port: Int, private val onClientChange: (Int) -> U
     private fun handleClient(socket: Socket) {
         scope.launch {
             try {
+                val input = DataInputStream(socket.getInputStream())
+                val viewerW = input.readInt()
+                val viewerH = input.readInt()
+                onViewerDimensions(viewerW, viewerH)
+
                 val out = DataOutputStream(socket.getOutputStream())
                 lastSpsData?.let { sps ->
                     out.writeByte(TYPE_CONFIG.toInt())
@@ -55,6 +64,8 @@ class StreamServer(private val port: Int, private val onClientChange: (Int) -> U
     }
 
     fun sendFrame(data: ByteArray, isKey: Boolean) = sendRaw(data, TYPE_FRAME)
+
+    fun clearSps() { lastSpsData = null }
 
     private fun sendRaw(data: ByteArray, type: Byte) {
         val dead = mutableListOf<DataOutputStream>()

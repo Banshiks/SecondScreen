@@ -28,7 +28,7 @@
         <activity
             android:name=".ViewerActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"/>
+            android:screenOrientation="fullSensor"/>
 
         <service
             android:name=".HostService"

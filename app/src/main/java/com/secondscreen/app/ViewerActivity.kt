@@ -3,12 +3,10 @@ package com.secondscreen.app
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.os.Bundle
-import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
@@ -26,6 +24,8 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var decoder: MediaCodec? = null
     private var decoderStarted = false
     private var pendingSurface: SurfaceHolder? = null
+    private var surfaceW = 0
+    private var surfaceH = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,44 +48,16 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
     }
 
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) fitSurfaceToScreen()
-    }
-
-    private fun fitSurfaceToScreen() {
-        val root = window.decorView
-        val screenW = root.width
-        val screenH = root.height
-        if (screenW == 0 || screenH == 0) return
-
-        val streamRatio = HostService.STREAM_WIDTH.toFloat() / HostService.STREAM_HEIGHT
-        val screenRatio = screenW.toFloat() / screenH
-
-        val surfW: Int
-        val surfH: Int
-        if (streamRatio > screenRatio) {
-            surfW = screenW
-            surfH = (screenW / streamRatio).toInt()
-        } else {
-            surfH = screenH
-            surfW = (screenH * streamRatio).toInt()
-        }
-
-        val lp = surfaceView.layoutParams as FrameLayout.LayoutParams
-        lp.width = surfW
-        lp.height = surfH
-        lp.gravity = Gravity.CENTER
-        surfaceView.layoutParams = lp
-    }
-
-    private fun startStreaming(holder: SurfaceHolder) {
+    private fun startStreaming(holder: SurfaceHolder, w: Int, h: Int) {
         val ip = intent.getStringExtra(EXTRA_HOST_IP) ?: return
         val port = intent.getIntExtra(EXTRA_HOST_PORT, HostService.STREAM_PORT)
         pendingSurface = holder
+        surfaceW = w
+        surfaceH = h
 
         streamClient = StreamClient(
             hostIp = ip, port = port,
+            viewerWidth = w, viewerHeight = h,
             onFrame = { data, isConfig -> decode(data, isConfig) },
             onStatus = { s -> runOnUiThread { tvStatus.text = s } },
             onConnected = { runOnUiThread { tvStatus.visibility = View.GONE } },
@@ -98,13 +70,12 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         if (!decoderStarted) {
             if (!isConfig) return
             val surface = pendingSurface?.surface ?: return
+            val w = if (surfaceW > 0) surfaceW else 1920
+            val h = if (surfaceH > 0) surfaceH else 1080
             try {
                 decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
                     configure(
-                        MediaFormat.createVideoFormat(
-                            MediaFormat.MIMETYPE_VIDEO_AVC,
-                            HostService.STREAM_WIDTH, HostService.STREAM_HEIGHT
-                        ),
+                        MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h),
                         surface, null, 0
                     )
                     start()
@@ -127,12 +98,15 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         } catch (e: Exception) { }
     }
 
-    override fun surfaceCreated(holder: SurfaceHolder) { startStreaming(holder) }
-    override fun surfaceChanged(holder: SurfaceHolder, f: Int, w: Int, h: Int) {}
+    override fun surfaceCreated(holder: SurfaceHolder) {}
+    override fun surfaceChanged(holder: SurfaceHolder, f: Int, w: Int, h: Int) {
+        if (streamClient == null) startStreaming(holder, w, h)
+    }
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         streamClient?.disconnect(); streamClient = null
         decoder?.stop(); decoder?.release(); decoder = null
         decoderStarted = false; pendingSurface = null
+        surfaceW = 0; surfaceH = 0
     }
 
     override fun onDestroy() {
