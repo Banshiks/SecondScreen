@@ -1,4 +1,4 @@
-name: Build APKs
+name: Build APK
 
 on:
   push:
@@ -15,15 +15,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       - uses: android-actions/setup-android@v3
-      - name: Build Host APK
-        run: cd host-app && gradle assembleDebug
-      - name: Build Client APK
-        run: cd client-app && gradle assembleDebug
+      - name: Build APK
+        run: gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: SecondScreen-HOST-tablet
-          path: host-app/build/outputs/apk/debug/*.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SecondScreen-CLIENT-nothing-phone
-          path: client-app/build/outputs/apk/debug/*.apk
+          name: SecondScreen-v2
+          path: app/build/outputs/apk/debug/*.apk

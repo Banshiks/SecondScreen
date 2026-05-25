@@ -12,5 +12,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "SecondScreen"
-include ':host-app'
-include ':client-app'
+include ':app'
